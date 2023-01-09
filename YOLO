@@ -1,0 +1,78 @@
+import tensorflow as tf
+from tensorflow import keras
+from PIL import Image
+from matplotlib import  pyplot as plt
+
+device_name = tf.test.gpu_device_name()
+if device_name != '/device:GPU:0':
+  raise SystemError('GPU device not found')
+print('Found GPU at: {}'.format(device_name))
+
+anchors = [[[116,90], [156,198], [373,326]], [[30,61], [62,45], [59,119]], [[10,13], [16,30], [33,23]]]
+darknet = tf.keras.models.load_model(model_path)
+yolo_outputs = darknet.predict(new_image)
+
+
+obj_thresh = 0.4
+nms_thresh = 0.45
+boxes=decode_netout(yolo_outputs,obj_thresh,anchors,420,720,416,416)
+boxes=do_nms(boxes,nms_thresh,obj_thresh)
+image_detect=draw_boxes(image_pil,boxes,labels)
+
+plt.figure(figsize=(12,12))
+plt.imshow(image_detect)
+plt.show()
+draw_boxes(image_pil,boxes,labels)
+
+
+def detect_image(image_pil, obj_thresh = 0.4, nms_thresh = 0.45, darknet=darknet, net_h=416, net_w=416, anchors=anchors, labels=labels):
+  ### YOUR CODE HERE
+  image_w, image_h = image_pil.size
+  new_image = preprocess_input(image_pil, net_h, net_w)
+  yolo_outputs = darknet.predict(new_image)
+  boxes = decode_netout(yolo_outputs, obj_thresh, anchors, image_h, image_w, net_h, net_w)
+  boxes = do_nms(boxes, nms_thresh, obj_thresh)
+  image_detect = draw_boxes(image_pil, boxes, labels) 
+
+  return image_detect
+  
+import cv2
+
+def detect_video(video_path, output_path, obj_thresh = 0.4, nms_thresh = 0.45, darknet=darknet, net_h=416, net_w=416, anchors=anchors, labels=labels):
+    vid = cv2.VideoCapture(video_path)
+    if not vid.isOpened():
+        raise IOError("Couldn't open webcam or video")
+    video_FourCC    = int(vid.get(cv2.CAP_PROP_FOURCC))
+    video_FourCC = cv2.VideoWriter_fourcc(*'mp4v')
+    video_fps       = vid.get(cv2.CAP_PROP_FPS)
+    video_size      = (int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                        int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    
+    out = cv2.VideoWriter(output_path, video_FourCC, video_fps, video_size)
+
+    num_frame = 0
+    while vid.isOpened():
+      ret, frame = vid.read()
+      num_frame += 1
+      print("=== Frame {} ===".format(num_frame))
+      if ret:
+          ### YOUR CODE HERE
+          frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+          image = Image.fromarray(frame)
+
+          result = detect_image(image)
+          
+          new_frame = np.asarray(result)
+          new_frame = cv2.cvtColor(new_frame, cv2.COLOR_RGB2BGR)
+  
+          ### END CODE          
+          out.write(new_frame)
+      else:
+          break
+    vid.release()
+    out.release()
+    print("New video saved!")
+
+video_path = '/content/data/video1.mp4'
+output_path = '/content/data/video1_detected.mp4'
+detect_video(video_path, output_path)
